@@ -92,7 +92,7 @@ def reduce_tensor(tensor):
     return tensor
 
 
-def gather_tensor(tensor):
+def gather_tensor(tensor, concat=False, dim=0):
     world_size = get_world_size()
 
     if world_size < 2:
@@ -105,7 +105,10 @@ def gather_tensor(tensor):
             tensor_list.append(torch.zeros_like(tensor))
 
         dist.all_gather(tensor_list, tensor)
-        tensor_list = torch.stack(tensor_list, dim=0)
+        if concat:
+            tensor_list = torch.cat(tensor_list, dim=dim)
+        else:
+            tensor_list = torch.stack(tensor_list, dim=dim)
     return tensor_list
 
 

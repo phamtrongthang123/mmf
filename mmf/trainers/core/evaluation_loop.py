@@ -16,33 +16,43 @@ logger = logging.getLogger(__name__)
 
 class TrainerEvaluationLoopMixin(ABC):
     def evaluation_loop(
-        self, loader, use_tqdm: bool = False, single_batch: bool = False
+        self, dataset_type: str, use_tqdm: bool = False, single_batch: bool = False
     ) -> Tuple[Dict[str, Any], Type[Meter]]:
         meter = Meter()
+        reporter = self.dataset_loader.get_test_reporter(dataset_type)
 
         with torch.no_grad():
             self.model.eval()
             disable_tqdm = not use_tqdm or not is_master()
-            combined_report = None
 
-            for batch in tqdm.tqdm(loader, disable=disable_tqdm):
-                report = self._forward(batch)
-                self.update_meter(report, meter)
+            while reporter.next_dataset(flush_report=False):
+                dataloader = reporter.get_dataloader()
 
-                # accumulate necessary params for metric calculation
-                if combined_report is None:
-                    combined_report = report
-                else:
-                    combined_report.accumulate_tensor_fields(
+                combined_report = None
+                for batch in tqdm.tqdm(dataloader, disable=disable_tqdm):
+                    prepared_batch = reporter.prepare_batch(batch)
+                    model_output = self.model(prepared_batch)
+                    report = Report(prepared_batch, model_output)
+                    report = reporter.gather_metric_tensors(
                         report, self.metrics.required_params
                     )
-                    combined_report.batch_size += report.batch_size
 
-                if single_batch is True:
-                    break
+                    self.update_meter(report, meter)
 
-            combined_report.metrics = self.metrics(combined_report, combined_report)
-            self.update_meter(combined_report, meter, eval_mode=True)
+                    # accumulate necessary params for metric calculation
+                    if combined_report is None:
+                        combined_report = report
+                    else:
+                        combined_report.accumulate_tensor_fields(
+                            report, self.metrics.required_params
+                        )
+                        combined_report.batch_size += report.batch_size
+
+                    if single_batch is True:
+                        break
+
+                combined_report.metrics = self.metrics(combined_report, combined_report)
+                self.update_meter(combined_report, meter, eval_mode=True)
 
             # enable train mode again
             self.model.train()

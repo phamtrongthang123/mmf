@@ -126,6 +126,6 @@ class MMFTrainer(
                 self.on_test_start()
                 logger.info(f"Starting inference on {dataset} set")
                 report, meter = self.evaluation_loop(
-                    getattr(self, f"{dataset}_loader"), use_tqdm=True
+                    dataset, use_tqdm=True
                 )
                 self.on_test_end(report=report, meter=meter)

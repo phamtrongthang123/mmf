@@ -56,9 +56,12 @@ class TestReporter(Dataset):
 
         PathManager.mkdirs(self.report_folder)
 
-    def next_dataset(self):
+    def next_dataset(self, flush_report=True):
         if self.current_dataset_idx >= 0:
-            self.flush_report()
+            if flush_report:
+                self.flush_report()
+            else:
+                self.report = []
 
         self.current_dataset_idx += 1
 
@@ -143,6 +146,12 @@ class TestReporter(Dataset):
 
     def __getitem__(self, idx):
         return self.current_dataset[idx]
+
+    def gather_metric_tensors(self, report, required_params):
+        for key in required_params:
+            if key not in ["dataset_name", "dataset_type"]:
+                report[key] = gather_tensor(report[key], concat=True, dim=0)
+        return report
 
     def add_to_report(self, report, model):
         # TODO: Later gather whole report for no opinions
