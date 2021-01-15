@@ -1,0 +1,7 @@
+includes:
+- ./defaults.yaml
+
+model_config:
+  unit:
+    detr_args:
+      dilation: false
